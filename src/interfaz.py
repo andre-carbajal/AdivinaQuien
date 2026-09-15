@@ -397,10 +397,8 @@ class App(ctk.CTk):
         return card
 
     def alternar_descarte(self, nombre):
+        """Alterna el descarte que el jugador decide marcar en su tablero."""
         if self.fase_usuario != "descartar":
-            return
-        candidatos = set(self.estado_usuario.candidatos)
-        if nombre not in candidatos:
             return
         if nombre in self.descartados_usuario:
             self.descartados_usuario.remove(nombre)
@@ -409,12 +407,12 @@ class App(ctk.CTk):
         self._actualizar_descarte_visual(nombre)
 
     def _esta_descartado_usuario(self, nombre):
-        candidatos = set(self.estado_usuario.candidatos)
-        return nombre not in candidatos or nombre in self.descartados_usuario
+        """Indica si el jugador marcó manualmente un personaje."""
+        return nombre in self.descartados_usuario
 
     def _restantes_usuario(self):
-        candidatos = set(self.estado_usuario.candidatos)
-        return len(candidatos - self.descartados_usuario)
+        """Cuenta los personajes que aún no fueron descartados por el jugador."""
+        return len(PERSONAJES) - len(self.descartados_usuario)
 
     def _actualizar_descarte_visual(self, nombre):
         """Actualiza una tarjeta sin reconstruir el tablero ni perder el scroll."""
