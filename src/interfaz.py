@@ -502,12 +502,12 @@ class App(ctk.CTk):
         """Tarjeta que permite descartar manualmente sin convertir el clic en acusación."""
         nombre = personaje["nombre"]
         descartado = self._esta_descartado_usuario(nombre)
-        card = ctk.CTkFrame(master, width=150, height=168, corner_radius=15,
+        card = ctk.CTkFrame(master, width=150, height=190, corner_radius=15,
                             fg_color=COLOR["discarded"] if descartado else COLOR["card"],
                             border_width=2, border_color=COLOR["red"] if descartado else COLOR["line"])
         card.grid_propagate(False)
         card.grid_columnconfigure(0, weight=1)
-        img = avatar(personaje, 86); self.imagenes.add(img)
+        img = avatar(personaje, 112); self.imagenes.add(img)
         foto = ctk.CTkLabel(card, text="", image=img)
         foto.grid(row=0, column=0, pady=(7, 0))
         etiqueta = self.texto(card, nombre, 11, COLOR["muted"] if descartado else COLOR["white"], True)
@@ -571,12 +571,12 @@ class App(ctk.CTk):
         widgets["adivinar"].configure(state="disabled" if descartado else "normal")
 
     def _tarjeta_cpu(self, master, personaje, descartado):
-        card=ctk.CTkFrame(master,width=150,height=142,corner_radius=15,
+        card=ctk.CTkFrame(master,width=150,height=160,corner_radius=15,
                           fg_color=COLOR["discarded"] if descartado else COLOR["card"],
                           border_width=3 if descartado else 1,
                           border_color=COLOR["red"] if descartado else COLOR["line"])
         card.grid_propagate(False); card.grid_columnconfigure(0,weight=1)
-        img=avatar(personaje,86); self.imagenes.add(img)
+        img=avatar(personaje,112); self.imagenes.add(img)
         ctk.CTkLabel(card,text="",image=img).grid(row=0,column=0,pady=(8,0))
         etiqueta = self.texto(card,personaje["nombre"],11,COLOR["muted"] if descartado else COLOR["white"],True)
         etiqueta.grid(row=1,column=0,pady=(0,8))
