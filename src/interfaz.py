@@ -1,7 +1,7 @@
 """Interfaz moderna Tú vs. Computadora para Adivina quién."""
 
 from pathlib import Path
-import random
+import secrets
 import sys
 
 BASE = Path(__file__).resolve().parent
@@ -14,8 +14,10 @@ from motor import MotorClips, MotorLogic
 
 from personajes import ATRIBUTOS, PERSONAJES
 
+MOTOR_LOGIC = "LOGIC.py"
+
 MOTORES = {
-    "LOGIC.py": MotorLogic,
+    MOTOR_LOGIC: MotorLogic,
     "CLIPS": MotorClips,
 }
 
@@ -89,7 +91,7 @@ class App(ctk.CTk):
         self.geometry("1240x790")
         self.minsize(1080, 720)
         self.configure(fg_color=COLOR["bg"])
-        self.motor_nombre = "LOGIC.py"
+        self.motor_nombre = MOTOR_LOGIC
         self.personaje = self.motor = self.estado = None
         self.personaje_cpu = self.motor_usuario = self.estado_usuario = None
         self.turno = "usuario"
@@ -150,7 +152,7 @@ class App(ctk.CTk):
         foot = ctk.CTkFrame(hero, fg_color="transparent")
         foot.pack(fill="x", padx=32, pady=(14, 28))
         self.texto(foot, "Motor de inferencia", 11, COLOR["muted"], True).pack(side="left", padx=(0, 10))
-        selector = ctk.CTkSegmentedButton(foot, values=["LOGIC.py", "CLIPS"], selected_color=COLOR["blue"],
+        selector = ctk.CTkSegmentedButton(foot, values=[MOTOR_LOGIC, "CLIPS"], selected_color=COLOR["blue"],
                                           selected_hover_color=COLOR["blue2"], unselected_color=COLOR["surface2"],
                                           unselected_hover_color=COLOR["card"], text_color=COLOR["white"],
                                           corner_radius=13, command=lambda v: setattr(self, "motor_nombre", v))
@@ -205,7 +207,7 @@ class App(ctk.CTk):
             candidato for candidato in PERSONAJES
             if candidato["nombre"] != personaje["nombre"]
         ]
-        self.personaje_cpu = random.choice(opciones_cpu)
+        self.personaje_cpu = secrets.choice(opciones_cpu)
         motor_cls = MOTORES[self.motor_nombre]
         self.motor = motor_cls()
         self.estado = self.motor.iniciar()
@@ -245,13 +247,12 @@ class App(ctk.CTk):
             self.mensaje_resultado = f"La computadora dedujo que elegiste a {self.estado.identificado}."
             self.resultado()
             return
-        attr,pregunta=self.estado.pregunta; n=len(self.estado.historial)+1
+        attr,pregunta=self.estado.pregunta
         respuesta_anterior = None
         if self.fase_computadora == "revisar" and self.estado.historial:
             ultima = self.estado.historial[-1]
             attr, pregunta = ultima["atributo"], ultima["pregunta"]
             respuesta_anterior = ultima["valor"]
-            n = len(self.estado.historial)
         top=ctk.CTkFrame(panel,fg_color="transparent"); top.pack(fill="x",padx=30,pady=(20,6))
         self.texto(top,"TURNO DE LA COMPUTADORA",13,COLOR["purple"],True).pack(side="left")
         self.texto(top,f"{len(self.estado.candidatos)} candidatos posibles",10,COLOR["muted"],True).pack(side="right")
