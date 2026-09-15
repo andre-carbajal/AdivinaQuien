@@ -36,7 +36,7 @@ La partida sigue este ciclo:
 1. El jugador selecciona un personaje de la base de conocimiento.
 2. El sistema elige un personaje secreto.
 3. El jugador formula una pregunta sobre un atributo o intenta identificar un candidato.
-4. La respuesta obtenida descarta los personajes incompatibles.
+4. El jugador decide manualmente qué personajes descartar según la respuesta obtenida.
 5. El sistema formula su propia pregunta y el jugador responde **Sí** o **No**.
 6. Los turnos continúan hasta que se identifica correctamente un personaje.
 
