@@ -31,12 +31,22 @@ COLOR = {
     "yellow": "#F1CC82", "green": "#287A5B", "red": "#A94C55",
     "purple": "#BEA3D4", "discarded": "#362C32",
 }
+
+AVATAR_CACHE = {}
+CPU_IMAGE_CACHE = {}
+
+
 def avatar(personaje, size=220):
     """Genera un retrato nítido en memoria; no necesita archivos externos."""
+    clave = (personaje["nombre"], size)
+    if clave in AVATAR_CACHE:
+        return AVATAR_CACHE[clave]
     asset = BASE / "assets" / "personajes" / f"{personaje['nombre'].lower()}.png"
     if asset.exists():
         im = Image.open(asset).convert("RGBA")
-        return ctk.CTkImage(light_image=im, dark_image=im, size=(size, size))
+        imagen = ctk.CTkImage(light_image=im, dark_image=im, size=(size, size))
+        AVATAR_CACHE[clave] = imagen
+        return imagen
     s = size * 2
     im = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
@@ -63,14 +73,20 @@ def avatar(personaje, size=220):
     if p["barba"]:
         d.pieslice((int(s*.33), int(s*.46), int(s*.67), int(s*.79)), 0, 180, fill=pelo)
         d.arc((int(s*.43), int(s*.51), int(s*.58), int(s*.65)), 20, 160, fill="#F2BE91", width=max(4, int(s*.014)))
-    return ctk.CTkImage(light_image=im, dark_image=im, size=(size, size))
+    imagen = ctk.CTkImage(light_image=im, dark_image=im, size=(size, size))
+    AVATAR_CACHE[clave] = imagen
+    return imagen
 
 
 def cpu_image(size=220):
+    if size in CPU_IMAGE_CACHE:
+        return CPU_IMAGE_CACHE[size]
     asset = BASE / "assets" / "personajes" / "computadora.png"
     if asset.exists():
         im = Image.open(asset).convert("RGBA")
-        return ctk.CTkImage(light_image=im, dark_image=im, size=(size, size))
+        imagen = ctk.CTkImage(light_image=im, dark_image=im, size=(size, size))
+        CPU_IMAGE_CACHE[size] = imagen
+        return imagen
     s = size * 2
     im = Image.new("RGBA", (s, s), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
     d.ellipse((10, 10, s-10, s-10), fill="#332B78")
@@ -81,7 +97,9 @@ def cpu_image(size=220):
     d.line((int(s*.43), int(s*.57), int(s*.57), int(s*.57)), fill="#60E6FF", width=max(5, int(s*.018)))
     d.line((s//2, int(s*.25), s//2, int(s*.15)), fill="#8775FF", width=max(7, int(s*.025)))
     d.ellipse((int(s*.47), int(s*.09), int(s*.53), int(s*.15)), fill="#FFD54A")
-    return ctk.CTkImage(im, size=(size, size))
+    imagen = ctk.CTkImage(im, size=(size, size))
+    CPU_IMAGE_CACHE[size] = imagen
+    return imagen
 
 
 class App(ctk.CTk):
@@ -115,7 +133,7 @@ class App(ctk.CTk):
         self.tarjetas_cpu = {}
         self.preview_timer = None
         self.preview_index = 0
-        self.imagenes = []
+        self.imagenes = set()
         self.inicio()
 
     def limpiar(self):
@@ -173,7 +191,7 @@ class App(ctk.CTk):
     def _jugador_card(self, master, title, accent):
         card=ctk.CTkFrame(master,width=260,height=300,corner_radius=24,fg_color=COLOR["surface2"],border_width=2,border_color=accent); card.pack_propagate(False)
         self.preview_imagenes = [avatar(personaje,180) for personaje in PERSONAJES]
-        self.imagenes.extend(self.preview_imagenes)
+        self.imagenes.update(self.preview_imagenes)
         self.preview_index = 0
         self.preview_label=ctk.CTkLabel(card,text="",image=self.preview_imagenes[0])
         self.preview_label.pack(pady=(24,8))
@@ -192,7 +210,7 @@ class App(ctk.CTk):
         self.preview_timer = self.after(2600,self.rotar_preview)
     def _cpu_card(self, master):
         card=ctk.CTkFrame(master,width=260,height=300,corner_radius=24,fg_color=COLOR["surface2"],border_width=2,border_color=COLOR["purple"]); card.pack_propagate(False)
-        img=cpu_image(180); self.imagenes.append(img); ctk.CTkLabel(card,text="",image=img).pack(pady=(24,8))
+        img=cpu_image(180); self.imagenes.add(img); ctk.CTkLabel(card,text="",image=img).pack(pady=(24,8))
         self.texto(card,"COMPUTADORA",19,COLOR["purple"],True).pack(); self.texto(card,"Analiza tus respuestas",11,COLOR["muted"]).pack(pady=3); return card
 
     def seleccion(self):
@@ -204,7 +222,7 @@ class App(ctk.CTk):
         board.pack(fill="both",expand=True,padx=42,pady=(0,34))
         for col in range(6): board.grid_columnconfigure(col,weight=1)
         for i,p in enumerate(PERSONAJES):
-            img=avatar(p,112); self.imagenes.append(img)
+            img=avatar(p,112); self.imagenes.add(img)
             b=ctk.CTkButton(board,text=p["nombre"],image=img,compound="top",width=155,height=205,
                             corner_radius=20,fg_color=COLOR["card"],hover_color=COLOR["blue2"],
                             border_width=2,border_color=COLOR["line"],
@@ -281,7 +299,7 @@ class App(ctk.CTk):
         lateral.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
         lateral.grid_propagate(False)
         img = avatar(self.personaje, 165)
-        self.imagenes.append(img)
+        self.imagenes.add(img)
         ctk.CTkLabel(lateral, text="", image=img).pack(pady=(24, 2))
         self.texto(lateral, "TU PERSONAJE", 11, COLOR["muted"], True).pack()
         self.texto(lateral, self.personaje["nombre"], 22, bold=True).pack(pady=(0, 15))
@@ -411,7 +429,7 @@ class App(ctk.CTk):
         lateral.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
         lateral.grid_propagate(False)
         img_cpu = cpu_image(138)
-        self.imagenes.append(img_cpu)
+        self.imagenes.add(img_cpu)
         ctk.CTkLabel(lateral, text="", image=img_cpu).pack(pady=(13, 0))
         self.texto(lateral, "COMPUTADORA", 13, COLOR["purple"], True).pack(pady=(0, 5))
         self.respuesta_usuario_label = self.texto(
@@ -489,7 +507,7 @@ class App(ctk.CTk):
                             border_width=2, border_color=COLOR["red"] if descartado else COLOR["line"])
         card.grid_propagate(False)
         card.grid_columnconfigure(0, weight=1)
-        img = avatar(personaje, 86); self.imagenes.append(img)
+        img = avatar(personaje, 86); self.imagenes.add(img)
         foto = ctk.CTkLabel(card, text="", image=img)
         foto.grid(row=0, column=0, pady=(7, 0))
         etiqueta = self.texto(card, nombre, 11, COLOR["muted"] if descartado else COLOR["white"], True)
@@ -558,7 +576,7 @@ class App(ctk.CTk):
                           border_width=3 if descartado else 1,
                           border_color=COLOR["red"] if descartado else COLOR["line"])
         card.grid_propagate(False); card.grid_columnconfigure(0,weight=1)
-        img=avatar(personaje,86); self.imagenes.append(img)
+        img=avatar(personaje,86); self.imagenes.add(img)
         ctk.CTkLabel(card,text="",image=img).grid(row=0,column=0,pady=(8,0))
         etiqueta = self.texto(card,personaje["nombre"],11,COLOR["muted"] if descartado else COLOR["white"],True)
         etiqueta.grid(row=1,column=0,pady=(0,8))
@@ -615,7 +633,7 @@ class App(ctk.CTk):
         encontrado=self.personaje_cpu if usuario_gana else self.personaje
         if self.ganador == "computadora" and self.mensaje_resultado and "personaje secreto" in self.mensaje_resultado:
             encontrado = self.personaje_cpu
-        img=avatar(encontrado,235); self.imagenes.append(img); ctk.CTkLabel(card,text="",image=img).pack(pady=(16,6)); self.texto(card,encontrado["nombre"],31,bold=True).pack(); self.texto(card,self.mensaje_resultado or "Partida terminada.",11,COLOR["muted"],wraplength=420,justify="center").pack(pady=(5,18)); self.texto(card,f"Motor {self.motor_nombre} · Turnos alternados",10,COLOR["muted"]).pack()
+        img=avatar(encontrado,235); self.imagenes.add(img); ctk.CTkLabel(card,text="",image=img).pack(pady=(16,6)); self.texto(card,encontrado["nombre"],31,bold=True).pack(); self.texto(card,self.mensaje_resultado or "Partida terminada.",11,COLOR["muted"],wraplength=420,justify="center").pack(pady=(5,18)); self.texto(card,f"Motor {self.motor_nombre} · Turnos alternados",10,COLOR["muted"]).pack()
         actions=ctk.CTkFrame(card,fg_color="transparent"); actions.pack(pady=22); self.boton(actions,"Jugar otra vez",lambda:self.cerrar(pop,self.seleccion),COLOR["blue"],180).pack(side="left",padx=6); self.boton(actions,"Inicio",lambda:self.cerrar(pop,self.inicio),COLOR["surface2"],110).pack(side="left",padx=6)
 
     @staticmethod
