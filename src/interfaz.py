@@ -291,7 +291,7 @@ class App(ctk.CTk):
 
         contenido = ctk.CTkFrame(self.vista_computadora, fg_color="transparent")
         contenido.pack(fill="both", expand=True, padx=28, pady=(3, 22))
-        contenido.grid_columnconfigure(0, weight=0)
+        contenido.grid_columnconfigure(0, weight=0, minsize=335)
         contenido.grid_columnconfigure(1, weight=1)
         contenido.grid_rowconfigure(0, weight=1)
 
@@ -421,7 +421,7 @@ class App(ctk.CTk):
 
         contenido = ctk.CTkFrame(self.vista_usuario, fg_color="transparent")
         contenido.pack(fill="both", expand=True, padx=28, pady=(3, 22))
-        contenido.grid_columnconfigure(0, weight=0)
+        contenido.grid_columnconfigure(0, weight=0, minsize=335)
         contenido.grid_columnconfigure(1, weight=1)
         contenido.grid_rowconfigure(0, weight=1)
 
