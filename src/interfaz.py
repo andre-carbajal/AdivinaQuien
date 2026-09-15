@@ -201,7 +201,11 @@ class App(ctk.CTk):
 
     def elegir(self, personaje):
         self.personaje = personaje
-        self.personaje_cpu = random.choice(PERSONAJES)
+        opciones_cpu = [
+            candidato for candidato in PERSONAJES
+            if candidato["nombre"] != personaje["nombre"]
+        ]
+        self.personaje_cpu = random.choice(opciones_cpu)
         motor_cls = MOTORES[self.motor_nombre]
         self.motor = motor_cls()
         self.estado = self.motor.iniciar()
@@ -305,7 +309,7 @@ class App(ctk.CTk):
         top = ctk.CTkFrame(panel, fg_color="transparent")
         top.pack(fill="x", padx=30, pady=(20, 6))
         self.texto(top, "TU TURNO", 13, COLOR["blue"], True).pack(side="left")
-        restantes = len(PERSONAJES) - len(self.descartados_usuario)
+        restantes = self._restantes_usuario()
         self.contador_descartes = self.texto(top, f"{restantes} personajes sin descartar", 10, COLOR["muted"], True)
         self.contador_descartes.pack(side="right")
 
@@ -363,7 +367,7 @@ class App(ctk.CTk):
     def _tarjeta_descartable(self, master, personaje):
         """Tarjeta que permite descartar manualmente sin convertir el clic en acusación."""
         nombre = personaje["nombre"]
-        descartado = nombre in self.descartados_usuario
+        descartado = self._esta_descartado_usuario(nombre)
         card = ctk.CTkFrame(master, width=150, height=168, corner_radius=15,
                             fg_color=COLOR["discarded"] if descartado else COLOR["card"],
                             border_width=2, border_color=COLOR["red"] if descartado else COLOR["line"])
@@ -394,18 +398,29 @@ class App(ctk.CTk):
     def alternar_descarte(self, nombre):
         if self.fase_usuario != "descartar":
             return
+        candidatos = set(self.estado_usuario.candidatos)
+        if nombre not in candidatos:
+            return
         if nombre in self.descartados_usuario:
             self.descartados_usuario.remove(nombre)
         else:
             self.descartados_usuario.add(nombre)
         self._actualizar_descarte_visual(nombre)
 
+    def _esta_descartado_usuario(self, nombre):
+        candidatos = set(self.estado_usuario.candidatos)
+        return nombre not in candidatos or nombre in self.descartados_usuario
+
+    def _restantes_usuario(self):
+        candidatos = set(self.estado_usuario.candidatos)
+        return len(candidatos - self.descartados_usuario)
+
     def _actualizar_descarte_visual(self, nombre):
         """Actualiza una tarjeta sin reconstruir el tablero ni perder el scroll."""
         widgets = self.tarjetas_usuario.get(nombre)
         if not widgets:
             return
-        descartado = nombre in self.descartados_usuario
+        descartado = self._esta_descartado_usuario(nombre)
         widgets["card"].configure(
             fg_color=COLOR["discarded"] if descartado else COLOR["card"],
             border_width=3 if descartado else 2,
@@ -416,7 +431,7 @@ class App(ctk.CTk):
         )
         widgets["adivinar"].configure(state="disabled" if descartado else "normal")
         if self.contador_descartes is not None:
-            restantes = len(PERSONAJES) - len(self.descartados_usuario)
+            restantes = self._restantes_usuario()
             self.contador_descartes.configure(text=f"{restantes} personajes sin descartar")
 
     def _tarjeta_cpu(self, master, personaje, descartado):
