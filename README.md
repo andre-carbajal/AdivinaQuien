@@ -1,6 +1,9 @@
 <div align="center">
   <h1>ADIVINA QUIÉN</h1>
-  <p><strong>Pregunta, descarta y descubre el personaje secreto antes que el sistema.</strong></p>
+  ## About
+Adivina Quién es un juego de deducción desarrollado como sistema basado en conocimiento. Cada personaje se representa mediante hechos y atributos; las respuestas permiten aplicar inferencia, descartar candidatos y alcanzar una conclusión justificable.
+
+<p><strong>Pregunta, descarta y descubre el personaje secreto antes que el sistema.</strong></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+">
     <img src="https://img.shields.io/badge/CustomTkinter-5.2.2-1F6AA5?style=for-the-badge" alt="CustomTkinter 5.2.2">

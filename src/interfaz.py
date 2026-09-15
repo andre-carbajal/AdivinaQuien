@@ -60,6 +60,10 @@ def avatar(personaje, size=220):
 
 
 def cpu_image(size=220):
+    asset = BASE / "assets" / "personajes" / "computadora.png"
+    if asset.exists():
+        im = Image.open(asset).convert("RGBA")
+        return ctk.CTkImage(light_image=im, dark_image=im, size=(size, size))
     s = size * 2
     im = Image.new("RGBA", (s, s), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
     d.ellipse((10, 10, s-10, s-10), fill="#332B78")
@@ -86,6 +90,7 @@ class App(ctk.CTk):
         self.turno = "usuario"
         self.ganador = self.mensaje_resultado = None
         self.ultima_respuesta_cpu = ""
+        self.descartados_usuario = set()
         self.imagenes = []
         self.inicio()
 
@@ -171,6 +176,7 @@ class App(ctk.CTk):
         self.turno = "usuario"
         self.ganador = self.mensaje_resultado = None
         self.ultima_respuesta_cpu = ""
+        self.descartados_usuario = set()
         self.juego()
 
     def juego(self):
@@ -204,9 +210,9 @@ class App(ctk.CTk):
         self.texto(top,"TURNO DE LA COMPUTADORA",13,COLOR["purple"],True).pack(side="left")
         self.texto(top,"RESPONDE SÍ O NO",10,COLOR["muted"],True).pack(side="right")
         ficha=ctk.CTkFrame(panel,corner_radius=17,fg_color=COLOR["surface2"]); ficha.pack(fill="x",padx=26,pady=(0,13))
-        img=avatar(self.personaje,92); self.imagenes.append(img); ctk.CTkLabel(ficha,text="",image=img).pack(side="left",padx=15,pady=10)
+        img=cpu_image(105); self.imagenes.append(img); ctk.CTkLabel(ficha,text="",image=img).pack(side="left",padx=15,pady=8)
         info=ctk.CTkFrame(ficha,fg_color="transparent"); info.pack(side="left",fill="y",pady=17)
-        self.texto(info,"Tu personaje",10,COLOR["muted"]).pack(anchor="w"); self.texto(info,self.personaje["nombre"],22,bold=True).pack(anchor="w"); self.texto(info,f"Pregunta {n} · {len(self.estado.candidatos)} candidatos",10,COLOR["muted"]).pack(anchor="w",pady=3)
+        self.texto(info,"Computadora",10,COLOR["muted"]).pack(anchor="w"); self.texto(info,"Analizando tu personaje",20,bold=True).pack(anchor="w"); self.texto(info,f"Pregunta {n} · {len(self.estado.candidatos)} candidatos",10,COLOR["muted"]).pack(anchor="w",pady=3)
         if self.ultima_respuesta_cpu:
             aviso=ctk.CTkFrame(panel,corner_radius=13,fg_color=COLOR["card"]); aviso.pack(fill="x",padx=26,pady=(0,10))
             self.texto(aviso,self.ultima_respuesta_cpu,10,COLOR["yellow"],True,wraplength=900,justify="left").pack(anchor="w",padx=16,pady=10)
@@ -234,42 +240,91 @@ class App(ctk.CTk):
     def turno_usuario(self, panel):
         """Permite al jugador preguntar o acusar a un personaje."""
         top = ctk.CTkFrame(panel, fg_color="transparent")
-        top.pack(fill="x", padx=38, pady=(25, 6))
+        top.pack(fill="x", padx=30, pady=(20, 6))
         self.texto(top, "TU TURNO", 13, COLOR["blue"], True).pack(side="left")
-        self.texto(top, "ELIGE UNA ACCIÓN", 10, COLOR["green"],True).pack(side="right")
-        self.texto(panel, "Pregunta o intenta adivinar", 23, bold=True).pack(anchor="w", padx=38, pady=(4, 2))
-        estado_texto=self.ultima_respuesta_cpu or f"La computadora guarda un personaje secreto · {len(self.estado_usuario.candidatos)} candidatos"
-        aviso=ctk.CTkFrame(panel,corner_radius=13,fg_color=COLOR["card"]); aviso.pack(fill="x",padx=38,pady=(8,10))
-        self.texto(aviso,estado_texto,10,COLOR["yellow"] if self.ultima_respuesta_cpu else COLOR["muted"],True,wraplength=500,justify="left").pack(anchor="w",padx=14,pady=10)
+        restantes = len(PERSONAJES) - len(self.descartados_usuario)
+        self.texto(top, f"{restantes} personajes sin descartar", 10, COLOR["muted"], True).pack(side="right")
 
-        preguntas = ctk.CTkFrame(panel, corner_radius=16, fg_color=COLOR["surface2"])
-        preguntas.pack(fill="x", padx=38, pady=(0, 14))
-        disponibles = [item for item in ATRIBUTOS if item[0] not in self.motor_usuario.respuestas]
-        for i, (atributo, pregunta) in enumerate(disponibles):
+        contenido = ctk.CTkFrame(panel, fg_color="transparent")
+        contenido.pack(fill="both", expand=True, padx=28, pady=(3, 22))
+        contenido.grid_columnconfigure(0, weight=0)
+        contenido.grid_columnconfigure(1, weight=1)
+        contenido.grid_rowconfigure(0, weight=1)
+
+        lateral = ctk.CTkFrame(contenido, width=335, corner_radius=20, fg_color=COLOR["surface2"])
+        lateral.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
+        lateral.grid_propagate(False)
+        img_cpu = cpu_image(138); self.imagenes.append(img_cpu)
+        ctk.CTkLabel(lateral, text="", image=img_cpu).pack(pady=(13, 0))
+        self.texto(lateral, "COMPUTADORA", 13, COLOR["purple"], True).pack(pady=(0, 5))
+        estado_texto = self.ultima_respuesta_cpu or "Selecciona una pregunta"
+        self.texto(lateral, estado_texto, 9, COLOR["yellow"] if self.ultima_respuesta_cpu else COLOR["muted"], True,
+                   wraplength=285, justify="center").pack(padx=16, pady=(0, 9))
+
+        preguntas = ctk.CTkFrame(lateral, fg_color="transparent")
+        preguntas.pack(fill="x", padx=13, pady=(0, 12))
+        for i, (atributo, pregunta) in enumerate(ATRIBUTOS):
+            respondida = atributo in self.motor_usuario.respuestas
+            valor = self.motor_usuario.respuestas.get(atributo)
+            color = COLOR["green"] if respondida and valor else COLOR["red"] if respondida else COLOR["card"]
+            prefijo = "Sí  ·  " if respondida and valor else "No  ·  " if respondida else ""
             b = ctk.CTkButton(
-                preguntas, text=pregunta, height=35, corner_radius=11,
-                fg_color=COLOR["card"], hover_color=COLOR["blue2"], anchor="w",
-                font=ctk.CTkFont("Segoe UI", 11, "bold"),
+                preguntas, text=prefijo + pregunta, height=34, corner_radius=10,
+                fg_color=color, hover_color=color if respondida else COLOR["blue2"], anchor="w",
+                font=ctk.CTkFont("Segoe UI", 10, "bold"),
                 command=lambda a=atributo: self.preguntar_computadora(a),
             )
-            b.grid(row=i//2, column=i%2, padx=7, pady=6, sticky="ew")
-        preguntas.grid_columnconfigure((0, 1), weight=1)
+            b.pack(fill="x", pady=3)
+            if respondida: b.configure(state="disabled", text_color_disabled=COLOR["white"])
 
-        self.texto(panel, "Haz clic en un candidato para adivinar:", 10, COLOR["yellow"], True).pack(anchor="w", padx=40, pady=(0, 5))
-        tablero = ctk.CTkScrollableFrame(panel, height=220, fg_color="transparent")
-        tablero.pack(fill="both", expand=True, padx=31, pady=(0, 20))
-        candidatos = [p for p in PERSONAJES if p["nombre"] in self.estado_usuario.candidatos]
-        for col in range(6): tablero.grid_columnconfigure(col, weight=1)
-        for i, p in enumerate(candidatos):
-            img = avatar(p, 78); self.imagenes.append(img)
-            candidato=ctk.CTkButton(
-                tablero, text=p["nombre"], image=img, compound="top", width=130, height=128,
-                corner_radius=15, fg_color=COLOR["card"], hover_color=COLOR["blue2"],
-                border_width=1, border_color=COLOR["line"],
-                font=ctk.CTkFont("Segoe UI", 11, "bold"),
-                command=lambda x=p: self.adivinar(x),
+        derecha = ctk.CTkFrame(contenido, corner_radius=20, fg_color=COLOR["surface2"])
+        derecha.grid(row=0, column=1, sticky="nsew")
+        cab = ctk.CTkFrame(derecha, fg_color="transparent")
+        cab.pack(fill="x", padx=20, pady=(14, 6))
+        self.texto(cab, "TABLERO DE PERSONAJES", 13, COLOR["blue"], True).pack(side="left")
+        self.texto(cab, "Pulsa una tarjeta para descartarla", 9, COLOR["muted"]).pack(side="right")
+        tablero = ctk.CTkScrollableFrame(derecha, fg_color="transparent")
+        tablero.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        for col in range(4): tablero.grid_columnconfigure(col, weight=1)
+        for i, personaje in enumerate(PERSONAJES):
+            self._tarjeta_descartable(tablero, personaje).grid(
+                row=i//4, column=i%4, padx=6, pady=6, sticky="nsew"
             )
-            candidato.grid(row=i//6, column=i%6, padx=6, pady=6, sticky="nsew")
+
+    def _tarjeta_descartable(self, master, personaje):
+        """Tarjeta que permite descartar manualmente sin convertir el clic en acusación."""
+        nombre = personaje["nombre"]
+        descartado = nombre in self.descartados_usuario
+        card = ctk.CTkFrame(master, width=150, height=168, corner_radius=15,
+                            fg_color="#10233D" if descartado else COLOR["card"],
+                            border_width=2, border_color=COLOR["red"] if descartado else COLOR["line"])
+        card.grid_propagate(False)
+        card.grid_columnconfigure(0, weight=1)
+        img = avatar(personaje, 86); self.imagenes.append(img)
+        foto = ctk.CTkLabel(card, text="", image=img)
+        foto.grid(row=0, column=0, pady=(7, 0))
+        self.texto(card, nombre, 11, COLOR["muted"] if descartado else COLOR["white"], True).grid(row=1, column=0, pady=(0, 3))
+        adivinar = ctk.CTkButton(card, text="Adivinar", height=25, corner_radius=8,
+                                fg_color=COLOR["blue"], hover_color=COLOR["blue2"],
+                                font=ctk.CTkFont("Segoe UI", 9, "bold"),
+                                command=lambda p=personaje: self.adivinar(p))
+        adivinar.grid(row=2, column=0, padx=18, pady=(0, 7), sticky="ew")
+        if descartado:
+            marca = ctk.CTkLabel(card, text="X", text_color=COLOR["red"],
+                                 font=ctk.CTkFont("Segoe UI", 55, "bold"), fg_color="transparent")
+            marca.place(relx=.5, rely=.34, anchor="center")
+            marca.bind("<Button-1>", lambda _e, n=nombre: self.alternar_descarte(n))
+            adivinar.configure(state="disabled")
+        for widget in (card, foto):
+            widget.bind("<Button-1>", lambda _e, n=nombre: self.alternar_descarte(n))
+        return card
+
+    def alternar_descarte(self, nombre):
+        if nombre in self.descartados_usuario:
+            self.descartados_usuario.remove(nombre)
+        else:
+            self.descartados_usuario.add(nombre)
+        self.actualizar()
 
     def preguntar_computadora(self, atributo):
         valor = bool(self.personaje_cpu[atributo])
