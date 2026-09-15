@@ -1,10 +1,6 @@
 import itertools
 
 
-class EvaluationException(Exception):
-    """Indica que falta una variable en el modelo de evaluación."""
-
-
 class Sentence():
 
     def evaluate(self, model):
