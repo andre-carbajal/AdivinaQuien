@@ -170,7 +170,11 @@ class App(ctk.CTk):
 
     def elegir(self, personaje):
         self.personaje = personaje
-        self.personaje_cpu = random.choice(PERSONAJES)
+        opciones_cpu = [
+            candidato for candidato in PERSONAJES
+            if candidato["nombre"] != personaje["nombre"]
+        ]
+        self.personaje_cpu = random.choice(opciones_cpu)
         motor_cls = MOTORES[self.motor_nombre]
         self.motor = motor_cls()
         self.estado = self.motor.iniciar()
@@ -245,7 +249,7 @@ class App(ctk.CTk):
         top = ctk.CTkFrame(panel, fg_color="transparent")
         top.pack(fill="x", padx=30, pady=(20, 6))
         self.texto(top, "TU TURNO", 13, COLOR["blue"], True).pack(side="left")
-        restantes = len(PERSONAJES) - len(self.descartados_usuario)
+        restantes = self._restantes_usuario()
         self.texto(top, f"{restantes} personajes sin descartar", 10, COLOR["muted"], True).pack(side="right")
 
         contenido = ctk.CTkFrame(panel, fg_color="transparent")
@@ -297,7 +301,7 @@ class App(ctk.CTk):
     def _tarjeta_descartable(self, master, personaje):
         """Tarjeta que permite descartar manualmente sin convertir el clic en acusación."""
         nombre = personaje["nombre"]
-        descartado = nombre in self.descartados_usuario
+        descartado = self._esta_descartado_usuario(nombre)
         card = ctk.CTkFrame(master, width=150, height=168, corner_radius=15,
                             fg_color="#10233D" if descartado else COLOR["card"],
                             border_width=2, border_color=COLOR["red"] if descartado else COLOR["line"])
@@ -323,11 +327,22 @@ class App(ctk.CTk):
         return card
 
     def alternar_descarte(self, nombre):
+        candidatos = set(self.estado_usuario.candidatos)
+        if nombre not in candidatos:
+            return
         if nombre in self.descartados_usuario:
             self.descartados_usuario.remove(nombre)
         else:
             self.descartados_usuario.add(nombre)
         self.actualizar()
+
+    def _esta_descartado_usuario(self, nombre):
+        candidatos = set(self.estado_usuario.candidatos)
+        return nombre not in candidatos or nombre in self.descartados_usuario
+
+    def _restantes_usuario(self):
+        candidatos = set(self.estado_usuario.candidatos)
+        return len(candidatos - self.descartados_usuario)
 
     def preguntar_computadora(self, atributo):
         valor = bool(self.personaje_cpu[atributo])
