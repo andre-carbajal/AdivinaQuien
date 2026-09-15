@@ -1,0 +1,14 @@
+[project]
+name = "adivina-quien"
+version = "0.1.0"
+description = "Juego de deducción Adivina Quién"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "clipspy>=1.0.6,<2",
+    "customtkinter==5.2.2",
+    "pillow>=10,<13",
+]
+
+[tool.uv]
+package = false

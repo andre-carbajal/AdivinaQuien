@@ -9,7 +9,7 @@ sys.path.insert(0, str(BASE / "ctk_vendor"))
 import customtkinter as ctk
 from PIL import Image, ImageDraw
 
-from motor import MotorDemostracion
+from motor import MotorClips, MotorLogic
 from personajes import ATRIBUTOS, PERSONAJES
 
 ctk.set_appearance_mode("dark")
@@ -22,6 +22,8 @@ COLOR = {
     "yellow": "#FFD54A", "green": "#2ED18A", "red": "#FF5C6C",
     "purple": "#8775FF",
 }
+
+MOTORES = {"LOGIC.py": MotorLogic, "CLIPS": MotorClips}
 
 
 def avatar(personaje, size=220):
@@ -169,9 +171,10 @@ class App(ctk.CTk):
     def elegir(self, personaje):
         self.personaje = personaje
         self.personaje_cpu = random.choice(PERSONAJES)
-        self.motor = MotorDemostracion(self.motor_nombre)
+        motor_cls = MOTORES[self.motor_nombre]
+        self.motor = motor_cls()
         self.estado = self.motor.iniciar()
-        self.motor_usuario = MotorDemostracion(self.motor_nombre)
+        self.motor_usuario = motor_cls()
         self.estado_usuario = self.motor_usuario.iniciar()
         self.turno = "usuario"
         self.ganador = self.mensaje_resultado = None

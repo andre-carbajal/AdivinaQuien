@@ -24,7 +24,7 @@ El jugador y el sistema conservan personajes secretos y se alternan para formula
 - Turnos secuenciales dentro de una única ventana.
 - Tablero interactivo para formular preguntas o identificar un personaje.
 - Pantalla final con el resultado y la explicación de la conclusión.
-- Arquitectura preparada para comparar LOGIC.py con una segunda tecnología.
+- Dos motores de inferencia intercambiables: LOGIC.py y CLIPS.
 - Pruebas automáticas para validar la identificación de los personajes.
 
 ## Cómo jugar
@@ -66,9 +66,8 @@ El motor conserva únicamente los personajes que satisfacen todas las respuestas
 | Lenguaje | Python 3.10 o superior |
 | Interfaz gráfica | CustomTkinter 5.2.2 |
 | Procesamiento de imágenes | Pillow |
-| Representación actual | Hechos booleanos y filtrado determinista |
-| Primera alternativa académica | LOGIC.py |
-| Segunda alternativa propuesta | CLIPS |
+| Motor LOGIC.py | `src/logic.py` y razonamiento proposicional |
+| Motor CLIPS | CLIPS 6.41 mediante clipspy |
 
 ## Arquitectura del proyecto
 
@@ -82,6 +81,8 @@ ADIVINAQUIEN/
 │   ├── assets/
 │   │   └── personajes/
 │   ├── interfaz.py
+│   ├── logic.py
+│   ├── clips_rules.clp
 │   ├── main.py
 │   ├── motor.py
 │   └── personajes.py
@@ -89,7 +90,8 @@ ADIVINAQUIEN/
 │   └── test_motor.py
 ├── .gitignore
 ├── README.md
-└── requirements.txt
+├── pyproject.toml
+└── uv.lock
 ```
 
 ### Responsabilidad de los módulos
@@ -97,7 +99,9 @@ ADIVINAQUIEN/
 - `main.py`: punto de entrada de la aplicación.
 - `interfaz.py`: navegación, componentes visuales y gestión de turnos.
 - `personajes.py`: personajes, atributos y preguntas de la base de conocimiento.
-- `motor.py`: contrato del motor y estrategia de inferencia utilizada por la demostración.
+- `motor.py`: contrato común y adaptadores de los motores LOGIC.py y CLIPS.
+- `logic.py`: biblioteca proposicional utilizada por el motor LOGIC.py.
+- `clips_rules.clp`: plantillas y reglas que ejecuta el motor CLIPS.
 - `assets/personajes/`: recursos gráficos de los personajes.
 - `test_motor.py`: validación automática del proceso de identificación.
 
@@ -106,47 +110,36 @@ ADIVINAQUIEN/
 ### Requisitos previos
 
 - Python 3.10 o superior.
-- `pip` disponible desde la terminal.
+- `uv` instalado y disponible desde la terminal.
 
 ### Preparación del entorno
 
-```powershell
-git clone https://github.com/andre-carbajal/AdivinaQuien.git
-cd ADIVINAQUIEN
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-```
-
-En Linux o macOS, la activación del entorno virtual se realiza con:
-
 ```bash
-source .venv/bin/activate
+git clone https://github.com/andre-carbajal/AdivinaQuien.git
+cd AdivinaQuien
+uv sync
 ```
 
 ## Ejecución
 
-```powershell
-python src\main.py
+```bash
+uv run python src/main.py
 ```
 
 ## Pruebas
 
-```powershell
-python tests\test_motor.py
+```bash
+uv run python tests/test_motor.py
 ```
 
-La prueba recorre los doce personajes, responde cada pregunta según sus atributos y verifica que el motor alcance la identificación correcta.
+La prueba recorre los doce personajes con ambos motores, verifica la eliminación de candidatos, las contradicciones y los estados sin coincidencia.
 
 ## Estado del desarrollo
 
-La interfaz, la base común de personajes, el flujo completo de la partida y el motor local de demostración se encuentran operativos. El selector visual incluye **LOGIC.py** y **CLIPS**, pero su integración académica definitiva debe realizarse mediante adaptadores que implementen el contrato `MotorConocimiento` definido en `src/motor.py`.
-
-Esta separación permite conservar la misma interfaz y base conceptual al comparar ambas tecnologías.
+La interfaz, la base común de personajes, el flujo completo de la partida y los dos motores de inferencia se encuentran operativos. El selector **LOGIC.py** usa la biblioteca proposicional adjunta y **CLIPS** ejecuta reglas reales mediante `clipspy`, ambos detrás del contrato `MotorConocimiento` definido en `src/motor.py`.
 
 ## Próximas mejoras
 
-- Integrar completamente los motores LOGIC.py y CLIPS.
 - Incorporar la explicación detallada de las reglas activadas en cada inferencia.
 - Ampliar la cantidad de personajes y atributos sin generar combinaciones indistinguibles.
 - Guardar estadísticas de partidas, preguntas utilizadas y resultados.
