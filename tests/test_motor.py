@@ -5,7 +5,7 @@ HERE = Path(__file__).resolve().parent
 SOURCE = HERE if (HERE / "motor.py").exists() else HERE.parent / "src"
 sys.path.insert(0, str(SOURCE))
 
-from motor import MotorClips, MotorLogic
+from motor import MotorClips, MotorLogic, estadisticas_inferencia
 from personajes import PERSONAJES
 
 
@@ -59,9 +59,36 @@ def test_clips_retrae_candidatos_con_reglas():
     assert {fact["nombre"] for fact in hechos} == esperados
 
 
+def test_mide_inferencia_y_reinicia_las_mediciones():
+    for motor_cls in MOTORES:
+        motor = motor_cls()
+        motor.iniciar()
+        assert motor.tiempos_inferencia_ms == []
+
+        motor.responder("mujer", True)
+
+        assert len(motor.tiempos_inferencia_ms) == 1
+        assert motor.tiempos_inferencia_ms[0] >= 0
+        motor.iniciar()
+        assert motor.tiempos_inferencia_ms == []
+
+
+def test_calcula_estadisticas_de_inferencia():
+    estadisticas = estadisticas_inferencia([0.1, 0.3, 0.2])
+
+    assert estadisticas["cantidad"] == 3
+    assert abs(estadisticas["total_ms"] - 0.6) < 1e-9
+    assert abs(estadisticas["promedio_ms"] - 0.2) < 1e-9
+    assert estadisticas["minimo_ms"] == 0.1
+    assert estadisticas["maximo_ms"] == 0.3
+    assert estadisticas_inferencia([]) is None
+
+
 if __name__ == "__main__":
     test_todos_los_personajes_en_ambos_motores()
     test_respuesta_contradictoria()
     test_sin_coincidencia()
     test_clips_retrae_candidatos_con_reglas()
+    test_mide_inferencia_y_reinicia_las_mediciones()
+    test_calcula_estadisticas_de_inferencia()
     print("Los 12 personajes fueron identificados por LOGIC.py y CLIPS.")

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import time
 from typing import Optional
 
 import clips
@@ -20,6 +21,19 @@ class EstadoJuego:
     explicacion: str = ""
 
 
+def estadisticas_inferencia(tiempos_ms: list[float]):
+    if not tiempos_ms:
+        return None
+    total_ms = sum(tiempos_ms)
+    return {
+        "cantidad": len(tiempos_ms),
+        "total_ms": total_ms,
+        "promedio_ms": total_ms / len(tiempos_ms),
+        "minimo_ms": min(tiempos_ms),
+        "maximo_ms": max(tiempos_ms),
+    }
+
+
 class MotorConocimiento:
     """Contrato común y comportamiento compartido de los motores."""
 
@@ -29,10 +43,12 @@ class MotorConocimiento:
         self.preguntas = dict(ATRIBUTOS)
         self.respuestas: dict[str, bool] = {}
         self.historial: list[dict] = []
+        self.tiempos_inferencia_ms: list[float] = []
 
     def iniciar(self) -> EstadoJuego:
         self.respuestas = {}
         self.historial = []
+        self.tiempos_inferencia_ms = []
         self._reiniciar_backend()
         return self._estado(self._candidatos())
 
@@ -41,10 +57,13 @@ class MotorConocimiento:
             raise ValueError(f"Atributo desconocido: {atributo}")
 
         valor = bool(valor)
+        inicio_inferencia = time.perf_counter_ns()
         if self._respuesta_contradictoria(atributo, valor):
+            candidatos = self._candidatos()
+            self._registrar_inferencia(inicio_inferencia)
             return EstadoJuego(
                 estado="contradiccion",
-                candidatos=self._candidatos(),
+                candidatos=candidatos,
                 historial=list(self.historial),
                 explicacion="El atributo ya tenía una respuesta diferente.",
             )
@@ -57,6 +76,7 @@ class MotorConocimiento:
         self.respuestas[atributo] = valor
         self._aplicar_respuesta(atributo, valor)
         candidatos = self._candidatos()
+        self._registrar_inferencia(inicio_inferencia)
         self.historial.append({
             "atributo": atributo,
             "pregunta": self.preguntas[atributo],
@@ -83,6 +103,11 @@ class MotorConocimiento:
 
     def _respuesta_contradictoria(self, atributo: str, valor: bool) -> bool:
         return atributo in self.respuestas and self.respuestas[atributo] != valor
+
+    def _registrar_inferencia(self, inicio_ns: int):
+        duracion_ms = (time.perf_counter_ns() - inicio_ns) / 1_000_000
+        self.tiempos_inferencia_ms.append(duracion_ms)
+        print(f"[INFERENCIA] {self.tecnologia}: {duracion_ms:.3f} ms")
 
     def _mejor_pregunta(self, candidatos: list[str]):
         pendientes = [a for a, _ in ATRIBUTOS if a not in self.respuestas]

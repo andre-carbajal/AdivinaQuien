@@ -10,7 +10,7 @@ sys.path.insert(0, str(BASE / "ctk_vendor"))
 import customtkinter as ctk
 from PIL import Image, ImageDraw
 
-from motor import MotorClips, MotorLogic
+from motor import MotorClips, MotorLogic, estadisticas_inferencia
 
 from personajes import ATRIBUTOS, PERSONAJES
 
@@ -114,6 +114,7 @@ class App(ctk.CTk):
         self.personaje_cpu = self.motor_usuario = self.estado_usuario = None
         self.turno = "usuario"
         self.ganador = self.mensaje_resultado = None
+        self.resumen_inferencia_impreso = False
         self.ultima_respuesta_cpu = ""
         self.descartados_usuario = set()
         self.fase_usuario = "preguntar"
@@ -244,6 +245,7 @@ class App(ctk.CTk):
         self.estado_usuario = self.motor_usuario.iniciar()
         self.turno = "usuario"
         self.ganador = self.mensaje_resultado = None
+        self.resumen_inferencia_impreso = False
         self.ultima_respuesta_cpu = ""
         self.descartados_usuario = set()
         self.fase_usuario = "preguntar"
@@ -625,7 +627,14 @@ class App(ctk.CTk):
         self.actualizar()
 
     def resultado(self):
-        pop=ctk.CTkToplevel(self); pop.title("Resultado de la partida"); pop.geometry("540x650"); pop.resizable(False,False); pop.configure(fg_color=COLOR["bg"]); pop.transient(self); pop.grab_set(); pop.protocol("WM_DELETE_WINDOW",lambda:self.cerrar(pop,self.inicio))
+        self._imprimir_resumen_inferencia()
+        pop = ctk.CTkToplevel(self)
+        pop.title("Resultado de la partida")
+        pop.geometry("540x650")
+        pop.resizable(False, False)
+        pop.configure(fg_color=COLOR["bg"])
+        pop.transient(self)
+        pop.protocol("WM_DELETE_WINDOW", lambda: self.cerrar(pop, self.inicio))
         usuario_gana = self.ganador == "usuario"
         color = COLOR["green"] if usuario_gana else COLOR["yellow"]
         card=ctk.CTkFrame(pop,corner_radius=28,fg_color=COLOR["surface"],border_width=2,border_color=color); card.pack(fill="both",expand=True,padx=24,pady=24)
@@ -635,6 +644,29 @@ class App(ctk.CTk):
             encontrado = self.personaje_cpu
         img=avatar(encontrado,235); self.imagenes.add(img); ctk.CTkLabel(card,text="",image=img).pack(pady=(16,6)); self.texto(card,encontrado["nombre"],31,bold=True).pack(); self.texto(card,self.mensaje_resultado or "Partida terminada.",11,COLOR["muted"],wraplength=420,justify="center").pack(pady=(5,18)); self.texto(card,f"Motor {self.motor_nombre} · Turnos alternados",10,COLOR["muted"]).pack()
         actions=ctk.CTkFrame(card,fg_color="transparent"); actions.pack(pady=22); self.boton(actions,"Jugar otra vez",lambda:self.cerrar(pop,self.seleccion),COLOR["blue"],180).pack(side="left",padx=6); self.boton(actions,"Inicio",lambda:self.cerrar(pop,self.inicio),COLOR["surface2"],110).pack(side="left",padx=6)
+        pop.wait_visibility()
+        pop.grab_set()
+
+    def _imprimir_resumen_inferencia(self):
+        if self.resumen_inferencia_impreso:
+            return
+        self.resumen_inferencia_impreso = True
+        tiempos = (
+            self.motor.tiempos_inferencia_ms
+            + self.motor_usuario.tiempos_inferencia_ms
+        )
+        estadisticas = estadisticas_inferencia(tiempos)
+        if estadisticas is None:
+            print(f"[RESUMEN] {self.motor_nombre} | sin inferencias registradas")
+            return
+        print(
+            f"[RESUMEN] {self.motor_nombre} "
+            f"| inferencias={estadisticas['cantidad']} "
+            f"| total={estadisticas['total_ms']:.3f} ms "
+            f"| promedio={estadisticas['promedio_ms']:.3f} ms "
+            f"| min={estadisticas['minimo_ms']:.3f} ms "
+            f"| max={estadisticas['maximo_ms']:.3f} ms"
+        )
 
     @staticmethod
     def cerrar(pop, accion):
