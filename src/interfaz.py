@@ -3,6 +3,7 @@
 from pathlib import Path
 import secrets
 import sys
+from tkinter import messagebox
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE / "ctk_vendor"))
@@ -10,15 +11,17 @@ sys.path.insert(0, str(BASE / "ctk_vendor"))
 import customtkinter as ctk
 from PIL import Image, ImageDraw
 
-from motor import MotorClips, MotorLogic, estadisticas_inferencia
+from motor import MotorClips, MotorLogic, MotorTypeSafe, estadisticas_inferencia
 
 from personajes import ATRIBUTOS, PERSONAJES
 
 MOTOR_LOGIC = "LOGIC.py"
+MOTOR_TYPESAFE = "TypeSafe"
 
 MOTORES = {
     MOTOR_LOGIC: MotorLogic,
     "CLIPS": MotorClips,
+    MOTOR_TYPESAFE: MotorTypeSafe,
 }
 
 ctk.set_appearance_mode("dark")
@@ -182,7 +185,7 @@ class App(ctk.CTk):
         foot = ctk.CTkFrame(hero, fg_color="transparent")
         foot.pack(fill="x", padx=32, pady=(14, 28))
         self.texto(foot, "Motor de inferencia", 11, COLOR["muted"], True).pack(side="left", padx=(0, 10))
-        selector = ctk.CTkSegmentedButton(foot, values=[MOTOR_LOGIC, "CLIPS"], selected_color=COLOR["blue"],
+        selector = ctk.CTkSegmentedButton(foot, values=[MOTOR_LOGIC, "CLIPS", MOTOR_TYPESAFE], selected_color=COLOR["blue"],
                                           selected_hover_color=COLOR["blue2"], unselected_color=COLOR["surface2"],
                                           unselected_hover_color=COLOR["card"], text_color=COLOR["white"],
                                           corner_radius=13, command=lambda v: setattr(self, "motor_nombre", v))
@@ -388,7 +391,13 @@ class App(ctk.CTk):
             vista.pack(fill="both", expand=True)
 
     def responder_computadora(self, atributo, valor):
-        self.estado = self.motor.responder(atributo, valor)
+        try:
+            self.estado = self.motor.responder(atributo, valor)
+        except Exception as error:
+            if self.motor_nombre != MOTOR_TYPESAFE:
+                raise
+            self._mostrar_error_typesafe(error)
+            return
         if self.estado.estado == "identificado":
             self.ganador = "computadora"
             self.mensaje_resultado = f"La computadora dedujo que elegiste a {self.estado.identificado}."
@@ -605,11 +614,26 @@ class App(ctk.CTk):
     def preguntar_computadora(self, atributo):
         valor = bool(self.personaje_cpu[atributo])
         pregunta = dict(ATRIBUTOS)[atributo]
-        self.estado_usuario = self.motor_usuario.responder(atributo, valor)
+        try:
+            self.estado_usuario = self.motor_usuario.responder(atributo, valor)
+        except Exception as error:
+            if self.motor_nombre != MOTOR_TYPESAFE:
+                raise
+            self._mostrar_error_typesafe(error)
+            return
         respuesta = "Sí" if valor else "No"
         self.ultima_respuesta_cpu = f"La computadora respondió {respuesta}: {pregunta}"
         self.fase_usuario = "descartar"
         self.actualizar()
+
+    def _mostrar_error_typesafe(self, error):
+        messagebox.showerror(
+            "Motor TypeSafe",
+            "No se pudo consultar TypeSafe.\n"
+            "Verifica TYPESAFE_API_KEY y la conexión a internet.\n\n"
+            f"{error}",
+            parent=self,
+        )
 
     def continuar_turno_computadora(self):
         self.fase_usuario = "preguntar"

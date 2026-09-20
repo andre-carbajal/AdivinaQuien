@@ -1,4 +1,4 @@
-"""Motores de inferencia LOGIC.py y CLIPS para Adivina Quién."""
+"""Motores de inferencia LOGIC.py, CLIPS y TypeSafe para Adivina Quién."""
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -6,6 +6,7 @@ import time
 from typing import Optional
 
 import clips
+from typesafe_sdk import Noul, TypeSafeClient
 
 from logic import And, Not, Symbol, model_check
 from personajes import ATRIBUTOS, PERSONAJES
@@ -245,3 +246,64 @@ class MotorClips(MotorConocimiento):
     @staticmethod
     def _simbolo_booleano(valor: bool) -> clips.Symbol:
         return clips.Symbol("TRUE" if valor else "FALSE")
+
+
+class MotorTypeSafe(MotorConocimiento):
+    """Motor remoto basado en preguntas Noul de TypeSafe AI."""
+
+    UMBRAL_COMPATIBILIDAD = 0.5
+
+    def __init__(self):
+        super().__init__("TypeSafe")
+        self._candidatos_actuales = []
+
+    def responder(self, atributo: str, valor: bool) -> EstadoJuego:
+        respuestas_anteriores = self.respuestas.copy()
+        try:
+            return super().responder(atributo, valor)
+        except Exception:
+            self.respuestas = respuestas_anteriores
+            raise
+
+    def _reiniciar_backend(self):
+        self._candidatos_actuales = list(self.personajes)
+
+    def _aplicar_respuesta(self, atributo: str, valor: bool):
+        pass
+
+    def _candidatos(self) -> list[str]:
+        nombres = self._candidatos_actuales
+        if not self.respuestas or not nombres:
+            return list(nombres)
+
+        state = {
+            "personajes": {
+                nombre: {
+                    atributo: self.personajes[nombre][atributo]
+                    for atributo, _ in ATRIBUTOS
+                }
+                for nombre in nombres
+            },
+            "respuestas": dict(self.respuestas),
+        }
+        questions = {
+            nombre: Noul(
+                instructions=(
+                    f"¿El personaje en `personajes.{nombre}` coincide con todas "
+                    "las respuestas conocidas en `respuestas`?"
+                ),
+                criteria={
+                    "true": "Todos los atributos registrados coinciden exactamente.",
+                    "false": "Al menos un atributo registrado no coincide.",
+                },
+            )
+            for nombre in nombres
+        }
+        with TypeSafeClient() as client:
+            response = client.system_one(state=state, questions=questions)
+
+        self._candidatos_actuales = [
+            nombre for nombre in nombres
+            if response.nouls[nombre].noul >= self.UMBRAL_COMPATIBILIDAD
+        ]
+        return list(self._candidatos_actuales)
