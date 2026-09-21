@@ -1,12 +1,14 @@
-"""Motores de inferencia LOGIC.py y CLIPS para Adivina Quién."""
+"""Motores de inferencia LOGIC.py, CLIPS y TypeSafe para Adivina Quién."""
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import time
 from typing import Optional
 
 import clips
+from typesafe_sdk import Noul, TypeSafeClient
 
-from logic import And, Not, Symbol, model_check
+from logic import And, Not, Or, Symbol, model_check
 from personajes import ATRIBUTOS, PERSONAJES
 
 
@@ -20,6 +22,19 @@ class EstadoJuego:
     explicacion: str = ""
 
 
+def estadisticas_inferencia(tiempos_ms: list[float]):
+    if not tiempos_ms:
+        return None
+    total_ms = sum(tiempos_ms)
+    return {
+        "cantidad": len(tiempos_ms),
+        "total_ms": total_ms,
+        "promedio_ms": total_ms / len(tiempos_ms),
+        "minimo_ms": min(tiempos_ms),
+        "maximo_ms": max(tiempos_ms),
+    }
+
+
 class MotorConocimiento:
     """Contrato común y comportamiento compartido de los motores."""
 
@@ -29,10 +44,12 @@ class MotorConocimiento:
         self.preguntas = dict(ATRIBUTOS)
         self.respuestas: dict[str, bool] = {}
         self.historial: list[dict] = []
+        self.tiempos_inferencia_ms: list[float] = []
 
     def iniciar(self) -> EstadoJuego:
         self.respuestas = {}
         self.historial = []
+        self.tiempos_inferencia_ms = []
         self._reiniciar_backend()
         return self._estado(self._candidatos())
 
@@ -41,10 +58,13 @@ class MotorConocimiento:
             raise ValueError(f"Atributo desconocido: {atributo}")
 
         valor = bool(valor)
+        inicio_inferencia = time.perf_counter_ns()
         if self._respuesta_contradictoria(atributo, valor):
+            candidatos = self._candidatos()
+            self._registrar_inferencia(inicio_inferencia)
             return EstadoJuego(
                 estado="contradiccion",
-                candidatos=self._candidatos(),
+                candidatos=candidatos,
                 historial=list(self.historial),
                 explicacion="El atributo ya tenía una respuesta diferente.",
             )
@@ -57,6 +77,7 @@ class MotorConocimiento:
         self.respuestas[atributo] = valor
         self._aplicar_respuesta(atributo, valor)
         candidatos = self._candidatos()
+        self._registrar_inferencia(inicio_inferencia)
         self.historial.append({
             "atributo": atributo,
             "pregunta": self.preguntas[atributo],
@@ -83,6 +104,11 @@ class MotorConocimiento:
 
     def _respuesta_contradictoria(self, atributo: str, valor: bool) -> bool:
         return atributo in self.respuestas and self.respuestas[atributo] != valor
+
+    def _registrar_inferencia(self, inicio_ns: int):
+        duracion_ms = (time.perf_counter_ns() - inicio_ns) / 1_000_000
+        self.tiempos_inferencia_ms.append(duracion_ms)
+        print(f"[INFERENCIA] {self.tecnologia}: {duracion_ms:.3f} ms")
 
     def _mejor_pregunta(self, candidatos: list[str]):
         pendientes = [a for a, _ in ATRIBUTOS if a not in self.respuestas]
@@ -136,6 +162,13 @@ class MotorLogic(MotorConocimiento):
 
     def __init__(self):
         super().__init__("LOGIC.py")
+        self.firmas = {
+            nombre: And(*(
+                self._literal(atributo, datos[atributo])
+                for atributo, _ in ATRIBUTOS
+            ))
+            for nombre, datos in self.personajes.items()
+        }
 
     def _reiniciar_backend(self):
         pass
@@ -149,27 +182,35 @@ class MotorLogic(MotorConocimiento):
         return simbolo if valor else Not(simbolo)
 
     def _formula_respuestas(self):
+        if not self.respuestas:
+            return None
         return And(*(
             self._literal(atributo, valor)
             for atributo, valor in self.respuestas.items()
         ))
 
-    def _respuesta_contradictoria(self, atributo: str, valor: bool) -> bool:
-        if atributo not in self.respuestas:
-            return False
-        conocimiento = self._formula_respuestas()
-        return model_check(conocimiento, Not(self._literal(atributo, valor)))
-
     def _candidatos(self) -> list[str]:
         conocimiento = self._formula_respuestas()
+        if conocimiento is None:
+            return list(self.personajes)
         return [
-            personaje["nombre"]
-            for personaje in PERSONAJES
-            if conocimiento.evaluate({
-                atributo: personaje[atributo]
-                for atributo, _ in ATRIBUTOS
-            })
+            nombre for nombre, firma in self.firmas.items()
+            if not model_check(conocimiento, Not(firma))
         ]
+
+    def _estado(self, candidatos: list[str]) -> EstadoJuego:
+        estado = super()._estado(candidatos)
+        if estado.estado != "identificado":
+            return estado
+
+        conocimiento = self._formula_respuestas()
+        dominio = Or(*(self.firmas[nombre] for nombre in candidatos))
+        if conocimiento is None or not model_check(
+            And(dominio, conocimiento),
+            self.firmas[estado.identificado],
+        ):
+            raise RuntimeError("La identificación lógica no pudo demostrarse.")
+        return estado
 
 
 class MotorClips(MotorConocimiento):
@@ -185,21 +226,16 @@ class MotorClips(MotorConocimiento):
         self.environment = clips.Environment()
         self.environment.load(str(self.REGLAS))
 
-        personaje = self.environment.find_template("personaje")
+        rasgo = self.environment.find_template("rasgo")
         candidato = self.environment.find_template("candidato")
-        for datos in PERSONAJES:
-            personaje.assert_fact(
-                nombre=datos["nombre"],
-                mujer=self._simbolo_booleano(datos["mujer"]),
-                lentes=self._simbolo_booleano(datos["lentes"]),
-                sombrero=self._simbolo_booleano(datos["sombrero"]),
-                barba=self._simbolo_booleano(datos["barba"]),
-                cabello_negro=self._simbolo_booleano(datos["cabello_negro"]),
-                cabello_rubio=self._simbolo_booleano(datos["cabello_rubio"]),
-                cabello_rojo=self._simbolo_booleano(datos["cabello_rojo"]),
-                cabello_largo=self._simbolo_booleano(datos["cabello_largo"]),
-            )
+        for datos in self.personajes.values():
             candidato.assert_fact(nombre=datos["nombre"])
+            for atributo, _ in ATRIBUTOS:
+                rasgo.assert_fact(
+                    personaje=datos["nombre"],
+                    atributo=clips.Symbol(atributo),
+                    valor=self._simbolo_booleano(datos[atributo]),
+                )
 
     def _aplicar_respuesta(self, atributo: str, valor: bool):
         if self.environment is None:
@@ -220,3 +256,64 @@ class MotorClips(MotorConocimiento):
     @staticmethod
     def _simbolo_booleano(valor: bool) -> clips.Symbol:
         return clips.Symbol("TRUE" if valor else "FALSE")
+
+
+class MotorTypeSafe(MotorConocimiento):
+    """Motor remoto basado en preguntas Noul de TypeSafe AI."""
+
+    UMBRAL_COMPATIBILIDAD = 0.5
+
+    def __init__(self):
+        super().__init__("TypeSafe")
+        self._candidatos_actuales = []
+
+    def responder(self, atributo: str, valor: bool) -> EstadoJuego:
+        respuestas_anteriores = self.respuestas.copy()
+        try:
+            return super().responder(atributo, valor)
+        except Exception:
+            self.respuestas = respuestas_anteriores
+            raise
+
+    def _reiniciar_backend(self):
+        self._candidatos_actuales = list(self.personajes)
+
+    def _aplicar_respuesta(self, atributo: str, valor: bool):
+        pass
+
+    def _candidatos(self) -> list[str]:
+        nombres = self._candidatos_actuales
+        if not self.respuestas or not nombres:
+            return list(nombres)
+
+        state = {
+            "personajes": {
+                nombre: {
+                    atributo: self.personajes[nombre][atributo]
+                    for atributo, _ in ATRIBUTOS
+                }
+                for nombre in nombres
+            },
+            "respuestas": dict(self.respuestas),
+        }
+        questions = {
+            nombre: Noul(
+                instructions=(
+                    f"¿El personaje en `personajes.{nombre}` coincide con todas "
+                    "las respuestas conocidas en `respuestas`?"
+                ),
+                criteria={
+                    "true": "Todos los atributos registrados coinciden exactamente.",
+                    "false": "Al menos un atributo registrado no coincide.",
+                },
+            )
+            for nombre in nombres
+        }
+        with TypeSafeClient() as client:
+            response = client.system_one(state=state, questions=questions)
+
+        self._candidatos_actuales = [
+            nombre for nombre in nombres
+            if response.nouls[nombre].noul >= self.UMBRAL_COMPATIBILIDAD
+        ]
+        return list(self._candidatos_actuales)

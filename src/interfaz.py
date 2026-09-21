@@ -3,6 +3,7 @@
 from pathlib import Path
 import secrets
 import sys
+from tkinter import messagebox
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE / "ctk_vendor"))
@@ -10,15 +11,17 @@ sys.path.insert(0, str(BASE / "ctk_vendor"))
 import customtkinter as ctk
 from PIL import Image, ImageDraw
 
-from motor import MotorClips, MotorLogic
+from motor import MotorClips, MotorLogic, MotorTypeSafe, estadisticas_inferencia
 
 from personajes import ATRIBUTOS, PERSONAJES
 
 MOTOR_LOGIC = "LOGIC.py"
+MOTOR_TYPESAFE = "TypeSafe"
 
 MOTORES = {
     MOTOR_LOGIC: MotorLogic,
     "CLIPS": MotorClips,
+    MOTOR_TYPESAFE: MotorTypeSafe,
 }
 
 ctk.set_appearance_mode("dark")
@@ -51,7 +54,12 @@ def avatar(personaje, size=220):
     im = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     p = personaje
-    pelo = "#20242B" if p["cabello_negro"] else "#E9B949" if p["cabello_rubio"] else "#BB533D"
+    pelo = (
+        "#20242B" if p["cabello_negro"]
+        else "#E9B949" if p["cabello_rubio"]
+        else "#BB533D" if p.get("cabello_rojo")
+        else "#6A452B"
+    )
     d.ellipse((10, 10, s-10, s-10), fill="#214A7A")
     d.ellipse((40, 40, s-40, s-40), fill="#2A5B91")
     if p["cabello_largo"]:
@@ -62,8 +70,9 @@ def avatar(personaje, size=220):
         d.rounded_rectangle((int(s*.22), int(s*.17), int(s*.78), int(s*.26)), radius=12, fill="#776CFF")
         d.rounded_rectangle((int(s*.34), int(s*.04), int(s*.66), int(s*.21)), radius=16, fill="#776CFF")
     eye = int(s*.025)
+    eye_color = "#3A8EDB" if p.get("ojos_claros") else "#152034"
     for x in (.42, .58):
-        d.ellipse((int(s*x-eye), int(s*.43-eye), int(s*x+eye), int(s*.43+eye)), fill="#152034")
+        d.ellipse((int(s*x-eye), int(s*.43-eye), int(s*x+eye), int(s*.43+eye)), fill=eye_color)
     if p["lentes"]:
         w = max(4, int(s*.015))
         d.ellipse((int(s*.33), int(s*.34), int(s*.49), int(s*.51)), outline="#152034", width=w)
@@ -73,6 +82,11 @@ def avatar(personaje, size=220):
     if p["barba"]:
         d.pieslice((int(s*.33), int(s*.46), int(s*.67), int(s*.79)), 0, 180, fill=pelo)
         d.arc((int(s*.43), int(s*.51), int(s*.58), int(s*.65)), 20, 160, fill="#F2BE91", width=max(4, int(s*.014)))
+    elif p.get("bigote"):
+        d.pieslice((int(s*.39), int(s*.54), int(s*.61), int(s*.62)), 0, 180, fill=pelo)
+    if p.get("aretes"):
+        d.ellipse((int(s*.28), int(s*.48), int(s*.31), int(s*.52)), fill="#FFD700")
+        d.ellipse((int(s*.69), int(s*.48), int(s*.72), int(s*.52)), fill="#FFD700")
     imagen = ctk.CTkImage(light_image=im, dark_image=im, size=(size, size))
     AVATAR_CACHE[clave] = imagen
     return imagen
@@ -114,6 +128,7 @@ class App(ctk.CTk):
         self.personaje_cpu = self.motor_usuario = self.estado_usuario = None
         self.turno = "usuario"
         self.ganador = self.mensaje_resultado = None
+        self.resumen_inferencia_impreso = False
         self.ultima_respuesta_cpu = ""
         self.descartados_usuario = set()
         self.fase_usuario = "preguntar"
@@ -181,7 +196,7 @@ class App(ctk.CTk):
         foot = ctk.CTkFrame(hero, fg_color="transparent")
         foot.pack(fill="x", padx=32, pady=(14, 28))
         self.texto(foot, "Motor de inferencia", 11, COLOR["muted"], True).pack(side="left", padx=(0, 10))
-        selector = ctk.CTkSegmentedButton(foot, values=[MOTOR_LOGIC, "CLIPS"], selected_color=COLOR["blue"],
+        selector = ctk.CTkSegmentedButton(foot, values=[MOTOR_LOGIC, "CLIPS", MOTOR_TYPESAFE], selected_color=COLOR["blue"],
                                           selected_hover_color=COLOR["blue2"], unselected_color=COLOR["surface2"],
                                           unselected_hover_color=COLOR["card"], text_color=COLOR["white"],
                                           corner_radius=13, command=lambda v: setattr(self, "motor_nombre", v))
@@ -196,7 +211,7 @@ class App(ctk.CTk):
         self.preview_label=ctk.CTkLabel(card,text="",image=self.preview_imagenes[0])
         self.preview_label.pack(pady=(24,8))
         self.texto(card,title,19,accent,True).pack()
-        self.texto(card,"12 personajes disponibles",11,COLOR["muted"]).pack(pady=3)
+        self.texto(card,f"{len(PERSONAJES)} personajes disponibles",11,COLOR["muted"]).pack(pady=3)
         self.preview_timer = self.after(2600,self.rotar_preview)
         return card
 
@@ -244,6 +259,7 @@ class App(ctk.CTk):
         self.estado_usuario = self.motor_usuario.iniciar()
         self.turno = "usuario"
         self.ganador = self.mensaje_resultado = None
+        self.resumen_inferencia_impreso = False
         self.ultima_respuesta_cpu = ""
         self.descartados_usuario = set()
         self.fase_usuario = "preguntar"
@@ -386,7 +402,13 @@ class App(ctk.CTk):
             vista.pack(fill="both", expand=True)
 
     def responder_computadora(self, atributo, valor):
-        self.estado = self.motor.responder(atributo, valor)
+        try:
+            self.estado = self.motor.responder(atributo, valor)
+        except Exception as error:
+            if self.motor_nombre != MOTOR_TYPESAFE:
+                raise
+            self._mostrar_error_typesafe(error)
+            return
         if self.estado.estado == "identificado":
             self.ganador = "computadora"
             self.mensaje_resultado = f"La computadora dedujo que elegiste a {self.estado.identificado}."
@@ -428,27 +450,27 @@ class App(ctk.CTk):
         lateral = ctk.CTkFrame(contenido, width=335, corner_radius=20, fg_color=COLOR["surface2"])
         lateral.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
         lateral.grid_propagate(False)
-        img_cpu = cpu_image(138)
+        img_cpu = cpu_image(115)
         self.imagenes.add(img_cpu)
-        ctk.CTkLabel(lateral, text="", image=img_cpu).pack(pady=(13, 0))
-        self.texto(lateral, "COMPUTADORA", 13, COLOR["purple"], True).pack(pady=(0, 5))
+        ctk.CTkLabel(lateral, text="", image=img_cpu).pack(pady=(10, 0))
+        self.texto(lateral, "COMPUTADORA", 13, COLOR["purple"], True).pack(pady=(0, 3))
         self.respuesta_usuario_label = self.texto(
             lateral, "", 9, COLOR["muted"], True, wraplength=285, justify="center"
         )
-        self.respuesta_usuario_label.pack(padx=16, pady=(0, 9))
+        self.respuesta_usuario_label.pack(padx=16, pady=(0, 6))
 
-        preguntas = ctk.CTkFrame(lateral, fg_color="transparent")
-        preguntas.pack(fill="x", padx=13, pady=(0, 12))
+        preguntas = ctk.CTkScrollableFrame(lateral, fg_color="transparent")
+        preguntas.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         self.botones_preguntas_usuario = {}
         for atributo, pregunta in ATRIBUTOS:
             b = ctk.CTkButton(
-                preguntas, text=pregunta, height=34, corner_radius=10,
+                preguntas, text=pregunta, height=32, corner_radius=10,
                 fg_color=COLOR["card"], hover_color=COLOR["blue2"], anchor="w",
                 text_color=COLOR["white"], text_color_disabled=COLOR["muted"],
                 font=ctk.CTkFont("Segoe UI", 10, "bold"),
                 command=lambda a=atributo: self.preguntar_computadora(a),
             )
-            b.pack(fill="x", pady=3)
+            b.pack(fill="x", pady=2)
             self.botones_preguntas_usuario[atributo] = b
 
         derecha = ctk.CTkFrame(contenido, corner_radius=20, fg_color=COLOR["surface2"])
@@ -603,11 +625,26 @@ class App(ctk.CTk):
     def preguntar_computadora(self, atributo):
         valor = bool(self.personaje_cpu[atributo])
         pregunta = dict(ATRIBUTOS)[atributo]
-        self.estado_usuario = self.motor_usuario.responder(atributo, valor)
+        try:
+            self.estado_usuario = self.motor_usuario.responder(atributo, valor)
+        except Exception as error:
+            if self.motor_nombre != MOTOR_TYPESAFE:
+                raise
+            self._mostrar_error_typesafe(error)
+            return
         respuesta = "Sí" if valor else "No"
         self.ultima_respuesta_cpu = f"La computadora respondió {respuesta}: {pregunta}"
         self.fase_usuario = "descartar"
         self.actualizar()
+
+    def _mostrar_error_typesafe(self, error):
+        messagebox.showerror(
+            "Motor TypeSafe",
+            "No se pudo consultar TypeSafe.\n"
+            "Verifica TYPESAFE_API_KEY y la conexión a internet.\n\n"
+            f"{error}",
+            parent=self,
+        )
 
     def continuar_turno_computadora(self):
         self.fase_usuario = "preguntar"
@@ -625,7 +662,14 @@ class App(ctk.CTk):
         self.actualizar()
 
     def resultado(self):
-        pop=ctk.CTkToplevel(self); pop.title("Resultado de la partida"); pop.geometry("540x650"); pop.resizable(False,False); pop.configure(fg_color=COLOR["bg"]); pop.transient(self); pop.grab_set(); pop.protocol("WM_DELETE_WINDOW",lambda:self.cerrar(pop,self.inicio))
+        self._imprimir_resumen_inferencia()
+        pop = ctk.CTkToplevel(self)
+        pop.title("Resultado de la partida")
+        pop.geometry("540x650")
+        pop.resizable(False, False)
+        pop.configure(fg_color=COLOR["bg"])
+        pop.transient(self)
+        pop.protocol("WM_DELETE_WINDOW", lambda: self.cerrar(pop, self.inicio))
         usuario_gana = self.ganador == "usuario"
         color = COLOR["green"] if usuario_gana else COLOR["yellow"]
         card=ctk.CTkFrame(pop,corner_radius=28,fg_color=COLOR["surface"],border_width=2,border_color=color); card.pack(fill="both",expand=True,padx=24,pady=24)
@@ -635,6 +679,29 @@ class App(ctk.CTk):
             encontrado = self.personaje_cpu
         img=avatar(encontrado,235); self.imagenes.add(img); ctk.CTkLabel(card,text="",image=img).pack(pady=(16,6)); self.texto(card,encontrado["nombre"],31,bold=True).pack(); self.texto(card,self.mensaje_resultado or "Partida terminada.",11,COLOR["muted"],wraplength=420,justify="center").pack(pady=(5,18)); self.texto(card,f"Motor {self.motor_nombre} · Turnos alternados",10,COLOR["muted"]).pack()
         actions=ctk.CTkFrame(card,fg_color="transparent"); actions.pack(pady=22); self.boton(actions,"Jugar otra vez",lambda:self.cerrar(pop,self.seleccion),COLOR["blue"],180).pack(side="left",padx=6); self.boton(actions,"Inicio",lambda:self.cerrar(pop,self.inicio),COLOR["surface2"],110).pack(side="left",padx=6)
+        pop.wait_visibility()
+        pop.grab_set()
+
+    def _imprimir_resumen_inferencia(self):
+        if self.resumen_inferencia_impreso:
+            return
+        self.resumen_inferencia_impreso = True
+        tiempos = (
+            self.motor.tiempos_inferencia_ms
+            + self.motor_usuario.tiempos_inferencia_ms
+        )
+        estadisticas = estadisticas_inferencia(tiempos)
+        if estadisticas is None:
+            print(f"[RESUMEN] {self.motor_nombre} | sin inferencias registradas")
+            return
+        print(
+            f"[RESUMEN] {self.motor_nombre} "
+            f"| inferencias={estadisticas['cantidad']} "
+            f"| total={estadisticas['total_ms']:.3f} ms "
+            f"| promedio={estadisticas['promedio_ms']:.3f} ms "
+            f"| min={estadisticas['minimo_ms']:.3f} ms "
+            f"| max={estadisticas['maximo_ms']:.3f} ms"
+        )
 
     @staticmethod
     def cerrar(pop, accion):

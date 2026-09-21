@@ -17,14 +17,14 @@ El jugador y el sistema conservan personajes secretos y se alternan para formula
 ## Características principales
 
 - Interfaz gráfica moderna desarrollada con CustomTkinter.
-- Doce personajes originales con retratos caricaturescos.
+- Veinticuatro personajes con retratos en 3D estilo Pixar.
 - Preguntas binarias basadas en atributos observables.
 - Selección dinámica de preguntas para reducir el conjunto de candidatos.
 - Registro de respuestas y candidatos compatibles.
 - Turnos secuenciales dentro de una única ventana.
 - Tablero interactivo para formular preguntas o identificar un personaje.
 - Pantalla final con el resultado y la explicación de la conclusión.
-- Dos motores de inferencia intercambiables: LOGIC.py y CLIPS.
+- Tres motores de inferencia intercambiables: LOGIC.py, CLIPS y TypeSafe.
 - Pruebas automáticas para validar la identificación de los personajes.
 
 ## Cómo jugar
@@ -52,10 +52,14 @@ Cada personaje está representado mediante proposiciones booleanas. La versión 
 | `lentes` | ¿El personaje usa lentes? |
 | `sombrero` | ¿El personaje usa sombrero? |
 | `barba` | ¿El personaje tiene barba? |
+| `bigote` | ¿Tiene bigote? |
 | `cabello_negro` | ¿Tiene el cabello negro? |
 | `cabello_rubio` | ¿Tiene el cabello rubio? |
 | `cabello_rojo` | ¿Tiene el cabello rojo? |
+| `cabello_castano` | ¿Tiene el cabello castaño? |
 | `cabello_largo` | ¿Tiene el cabello largo? |
+| `ojos_claros` | ¿Tiene los ojos claros? |
+| `aretes` | ¿Usa aretes? |
 
 El motor conserva únicamente los personajes que satisfacen todas las respuestas registradas. La siguiente pregunta se selecciona buscando una división equilibrada entre los candidatos restantes, lo que reduce progresivamente el espacio de búsqueda.
 
@@ -68,6 +72,7 @@ El motor conserva únicamente los personajes que satisfacen todas las respuestas
 | Procesamiento de imágenes | Pillow |
 | Motor LOGIC.py | `src/logic.py` y razonamiento proposicional |
 | Motor CLIPS | CLIPS 6.41 mediante clipspy |
+| Motor TypeSafe | `typesafe-sdk` y preguntas Noul sobre la API remota |
 
 ## Arquitectura del proyecto
 
@@ -99,7 +104,7 @@ ADIVINAQUIEN/
 - `main.py`: punto de entrada de la aplicación.
 - `interfaz.py`: navegación, componentes visuales y gestión de turnos.
 - `personajes.py`: personajes, atributos y preguntas de la base de conocimiento.
-- `motor.py`: contrato común y adaptadores de los motores LOGIC.py y CLIPS.
+- `motor.py`: contrato común y adaptadores de los motores LOGIC.py, CLIPS y TypeSafe.
 - `logic.py`: biblioteca proposicional utilizada por el motor LOGIC.py.
 - `clips_rules.clp`: plantillas y reglas que ejecuta el motor CLIPS.
 - `assets/personajes/`: recursos gráficos de los personajes.
@@ -120,6 +125,14 @@ cd AdivinaQuien
 uv sync
 ```
 
+Para usar el motor TypeSafe, configura también una clave de la API antes de iniciar la aplicación:
+
+```bash
+export TYPESAFE_API_KEY="tu-clave-de-typesafe"
+```
+
+LOGIC.py y CLIPS funcionan sin esta variable. TypeSafe requiere conexión a internet.
+
 ## Ejecución
 
 ```bash
@@ -130,13 +143,14 @@ uv run python src/main.py
 
 ```bash
 uv run python tests/test_motor.py
+uv run python tests/test_interfaz.py
 ```
 
-La prueba recorre los doce personajes con ambos motores, verifica la eliminación de candidatos, las contradicciones y los estados sin coincidencia.
+Las pruebas locales recorren los veinticuatro personajes con LOGIC.py, CLIPS y un cliente TypeSafe falso; también verifican la eliminación de candidatos, las contradicciones y el reinicio sin consumir créditos de la API.
 
 ## Estado del desarrollo
 
-La interfaz, la base común de personajes, el flujo completo de la partida y los dos motores de inferencia se encuentran operativos. El selector **LOGIC.py** usa la biblioteca proposicional adjunta y **CLIPS** ejecuta reglas reales mediante `clipspy`, ambos detrás del contrato `MotorConocimiento` definido en `src/motor.py`.
+La interfaz, la base común de personajes, el flujo completo de la partida y los tres motores de inferencia se encuentran operativos. El selector **LOGIC.py** usa la biblioteca proposicional adjunta, **CLIPS** ejecuta reglas reales mediante `clipspy` y **TypeSafe** consulta preguntas `Noul` agrupadas mediante `typesafe-sdk`, todos detrás del contrato `MotorConocimiento` definido en `src/motor.py`.
 
 ## Próximas mejoras
 

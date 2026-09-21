@@ -8,6 +8,7 @@ dependencies = [
     "clipspy>=1.0.6,<2",
     "customtkinter==5.2.2",
     "pillow>=10,<13",
+    "typesafe-sdk>=0.7,<1",
 ]
 
 [tool.uv]
