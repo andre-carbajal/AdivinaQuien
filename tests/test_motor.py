@@ -7,8 +7,9 @@ HERE = Path(__file__).resolve().parent
 SOURCE = HERE if (HERE / "motor.py").exists() else HERE.parent / "src"
 sys.path.insert(0, str(SOURCE))
 
+from logic import model_check
 from motor import MotorClips, MotorLogic, MotorTypeSafe, estadisticas_inferencia
-from personajes import PERSONAJES
+from personajes import ATRIBUTOS, PERSONAJES
 
 
 MOTORES = (MotorLogic, MotorClips)
@@ -65,12 +66,40 @@ def test_respuesta_contradictoria():
         assert len(estado.historial) == 1
 
 
+def test_motores_conservan_candidatos_equivalentes_por_paso():
+    for personaje in (PERSONAJES[0], PERSONAJES[len(PERSONAJES) // 2], PERSONAJES[-1]):
+        logic = MotorLogic()
+        clips_motor = MotorClips()
+        estado_logic = logic.iniciar()
+        estado_clips = clips_motor.iniciar()
+
+        for _ in range(4):
+            assert estado_logic.estado == estado_clips.estado
+            assert estado_logic.candidatos == estado_clips.candidatos
+            if estado_logic.estado != "preguntando":
+                break
+
+            atributo, _ = estado_logic.pregunta
+            assert estado_clips.pregunta[0] == atributo
+            estado_logic = logic.responder(atributo, personaje[atributo])
+            estado_clips = clips_motor.responder(atributo, personaje[atributo])
+
+
+def test_logic_consulta_model_check_para_inferir_candidatos():
+    with patch("motor.model_check", wraps=model_check) as comprobador:
+        motor = MotorLogic()
+        motor.iniciar()
+        motor.responder("mujer", True)
+
+    assert comprobador.call_count >= len(PERSONAJES)
+
+
 def test_sin_coincidencia():
     for motor_cls in MOTORES:
         motor = motor_cls()
         motor.iniciar()
-        motor.responder("mujer", False)
-        estado = motor.responder("cabello_largo", True)
+        motor.responder("mujer", True)
+        estado = motor.responder("barba", True)
         assert estado.estado == "sin_coincidencia"
         assert estado.candidatos == []
 
@@ -83,6 +112,24 @@ def test_clips_retrae_candidatos_con_reglas():
     assert set(estado.candidatos) == esperados
     hechos = motor.environment.find_template("candidato").facts()
     assert {fact["nombre"] for fact in hechos} == esperados
+    rasgos = motor.environment.find_template("rasgo").facts()
+    assert len(list(rasgos)) == len(PERSONAJES) * len(ATRIBUTOS)
+    descartados = list(motor.environment.find_template("descartado").facts())
+    assert len(descartados) == len(PERSONAJES) - len(esperados)
+    assert {str(fact["atributo"]) for fact in descartados} == {"mujer"}
+    assert {str(fact["recibido"]) for fact in descartados} == {"TRUE"}
+
+
+def test_clips_reinicia_hechos_de_la_partida():
+    motor = MotorClips()
+    motor.iniciar()
+    motor.responder("mujer", True)
+
+    estado = motor.iniciar()
+
+    assert set(estado.candidatos) == {p["nombre"] for p in PERSONAJES}
+    assert list(motor.environment.find_template("respuesta").facts()) == []
+    assert list(motor.environment.find_template("descartado").facts()) == []
 
 
 def test_mide_inferencia_y_reinicia_las_mediciones():
@@ -181,12 +228,15 @@ def test_typesafe_propaga_error_y_revierte_la_respuesta():
 if __name__ == "__main__":
     test_todos_los_personajes_en_ambos_motores()
     test_respuesta_contradictoria()
+    test_motores_conservan_candidatos_equivalentes_por_paso()
+    test_logic_consulta_model_check_para_inferir_candidatos()
     test_sin_coincidencia()
     test_clips_retrae_candidatos_con_reglas()
+    test_clips_reinicia_hechos_de_la_partida()
     test_mide_inferencia_y_reinicia_las_mediciones()
     test_calcula_estadisticas_de_inferencia()
     test_typesafe_filtra_con_nouls_en_una_sola_llamada()
     test_typesafe_identifica_todos_los_personajes()
     test_typesafe_maneja_contradiccion_y_reinicio()
     test_typesafe_propaga_error_y_revierte_la_respuesta()
-    print("Los 12 personajes fueron identificados por LOGIC.py, CLIPS y TypeSafe.")
+    print(f"Los {len(PERSONAJES)} personajes fueron identificados por LOGIC.py, CLIPS y TypeSafe.")

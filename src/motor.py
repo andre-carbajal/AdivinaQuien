@@ -8,7 +8,7 @@ from typing import Optional
 import clips
 from typesafe_sdk import Noul, TypeSafeClient
 
-from logic import And, Not, Symbol, model_check
+from logic import And, Not, Or, Symbol, model_check
 from personajes import ATRIBUTOS, PERSONAJES
 
 
@@ -162,6 +162,13 @@ class MotorLogic(MotorConocimiento):
 
     def __init__(self):
         super().__init__("LOGIC.py")
+        self.firmas = {
+            nombre: And(*(
+                self._literal(atributo, datos[atributo])
+                for atributo, _ in ATRIBUTOS
+            ))
+            for nombre, datos in self.personajes.items()
+        }
 
     def _reiniciar_backend(self):
         pass
@@ -175,27 +182,35 @@ class MotorLogic(MotorConocimiento):
         return simbolo if valor else Not(simbolo)
 
     def _formula_respuestas(self):
+        if not self.respuestas:
+            return None
         return And(*(
             self._literal(atributo, valor)
             for atributo, valor in self.respuestas.items()
         ))
 
-    def _respuesta_contradictoria(self, atributo: str, valor: bool) -> bool:
-        if atributo not in self.respuestas:
-            return False
-        conocimiento = self._formula_respuestas()
-        return model_check(conocimiento, Not(self._literal(atributo, valor)))
-
     def _candidatos(self) -> list[str]:
         conocimiento = self._formula_respuestas()
+        if conocimiento is None:
+            return list(self.personajes)
         return [
-            personaje["nombre"]
-            for personaje in PERSONAJES
-            if conocimiento.evaluate({
-                atributo: personaje[atributo]
-                for atributo, _ in ATRIBUTOS
-            })
+            nombre for nombre, firma in self.firmas.items()
+            if not model_check(conocimiento, Not(firma))
         ]
+
+    def _estado(self, candidatos: list[str]) -> EstadoJuego:
+        estado = super()._estado(candidatos)
+        if estado.estado != "identificado":
+            return estado
+
+        conocimiento = self._formula_respuestas()
+        dominio = Or(*(self.firmas[nombre] for nombre in candidatos))
+        if conocimiento is None or not model_check(
+            And(dominio, conocimiento),
+            self.firmas[estado.identificado],
+        ):
+            raise RuntimeError("La identificación lógica no pudo demostrarse.")
+        return estado
 
 
 class MotorClips(MotorConocimiento):
@@ -211,21 +226,16 @@ class MotorClips(MotorConocimiento):
         self.environment = clips.Environment()
         self.environment.load(str(self.REGLAS))
 
-        personaje = self.environment.find_template("personaje")
+        rasgo = self.environment.find_template("rasgo")
         candidato = self.environment.find_template("candidato")
-        for datos in PERSONAJES:
-            personaje.assert_fact(
-                nombre=datos["nombre"],
-                mujer=self._simbolo_booleano(datos["mujer"]),
-                lentes=self._simbolo_booleano(datos["lentes"]),
-                sombrero=self._simbolo_booleano(datos["sombrero"]),
-                barba=self._simbolo_booleano(datos["barba"]),
-                cabello_negro=self._simbolo_booleano(datos["cabello_negro"]),
-                cabello_rubio=self._simbolo_booleano(datos["cabello_rubio"]),
-                cabello_rojo=self._simbolo_booleano(datos["cabello_rojo"]),
-                cabello_largo=self._simbolo_booleano(datos["cabello_largo"]),
-            )
+        for datos in self.personajes.values():
             candidato.assert_fact(nombre=datos["nombre"])
+            for atributo, _ in ATRIBUTOS:
+                rasgo.assert_fact(
+                    personaje=datos["nombre"],
+                    atributo=clips.Symbol(atributo),
+                    valor=self._simbolo_booleano(datos[atributo]),
+                )
 
     def _aplicar_respuesta(self, atributo: str, valor: bool):
         if self.environment is None:

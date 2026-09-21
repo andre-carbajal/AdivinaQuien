@@ -17,7 +17,7 @@ El jugador y el sistema conservan personajes secretos y se alternan para formula
 ## Características principales
 
 - Interfaz gráfica moderna desarrollada con CustomTkinter.
-- Doce personajes originales con retratos caricaturescos.
+- Veinticuatro personajes con retratos en 3D estilo Pixar.
 - Preguntas binarias basadas en atributos observables.
 - Selección dinámica de preguntas para reducir el conjunto de candidatos.
 - Registro de respuestas y candidatos compatibles.
@@ -52,10 +52,14 @@ Cada personaje está representado mediante proposiciones booleanas. La versión 
 | `lentes` | ¿El personaje usa lentes? |
 | `sombrero` | ¿El personaje usa sombrero? |
 | `barba` | ¿El personaje tiene barba? |
+| `bigote` | ¿Tiene bigote? |
 | `cabello_negro` | ¿Tiene el cabello negro? |
 | `cabello_rubio` | ¿Tiene el cabello rubio? |
 | `cabello_rojo` | ¿Tiene el cabello rojo? |
+| `cabello_castano` | ¿Tiene el cabello castaño? |
 | `cabello_largo` | ¿Tiene el cabello largo? |
+| `ojos_claros` | ¿Tiene los ojos claros? |
+| `aretes` | ¿Usa aretes? |
 
 El motor conserva únicamente los personajes que satisfacen todas las respuestas registradas. La siguiente pregunta se selecciona buscando una división equilibrada entre los candidatos restantes, lo que reduce progresivamente el espacio de búsqueda.
 
@@ -142,7 +146,7 @@ uv run python tests/test_motor.py
 uv run python tests/test_interfaz.py
 ```
 
-Las pruebas locales recorren los doce personajes con LOGIC.py, CLIPS y un cliente TypeSafe falso; también verifican la eliminación de candidatos, las contradicciones y el reinicio sin consumir créditos de la API.
+Las pruebas locales recorren los veinticuatro personajes con LOGIC.py, CLIPS y un cliente TypeSafe falso; también verifican la eliminación de candidatos, las contradicciones y el reinicio sin consumir créditos de la API.
 
 ## Estado del desarrollo
 

@@ -54,7 +54,12 @@ def avatar(personaje, size=220):
     im = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     p = personaje
-    pelo = "#20242B" if p["cabello_negro"] else "#E9B949" if p["cabello_rubio"] else "#BB533D"
+    pelo = (
+        "#20242B" if p["cabello_negro"]
+        else "#E9B949" if p["cabello_rubio"]
+        else "#BB533D" if p.get("cabello_rojo")
+        else "#6A452B"
+    )
     d.ellipse((10, 10, s-10, s-10), fill="#214A7A")
     d.ellipse((40, 40, s-40, s-40), fill="#2A5B91")
     if p["cabello_largo"]:
@@ -65,8 +70,9 @@ def avatar(personaje, size=220):
         d.rounded_rectangle((int(s*.22), int(s*.17), int(s*.78), int(s*.26)), radius=12, fill="#776CFF")
         d.rounded_rectangle((int(s*.34), int(s*.04), int(s*.66), int(s*.21)), radius=16, fill="#776CFF")
     eye = int(s*.025)
+    eye_color = "#3A8EDB" if p.get("ojos_claros") else "#152034"
     for x in (.42, .58):
-        d.ellipse((int(s*x-eye), int(s*.43-eye), int(s*x+eye), int(s*.43+eye)), fill="#152034")
+        d.ellipse((int(s*x-eye), int(s*.43-eye), int(s*x+eye), int(s*.43+eye)), fill=eye_color)
     if p["lentes"]:
         w = max(4, int(s*.015))
         d.ellipse((int(s*.33), int(s*.34), int(s*.49), int(s*.51)), outline="#152034", width=w)
@@ -76,6 +82,11 @@ def avatar(personaje, size=220):
     if p["barba"]:
         d.pieslice((int(s*.33), int(s*.46), int(s*.67), int(s*.79)), 0, 180, fill=pelo)
         d.arc((int(s*.43), int(s*.51), int(s*.58), int(s*.65)), 20, 160, fill="#F2BE91", width=max(4, int(s*.014)))
+    elif p.get("bigote"):
+        d.pieslice((int(s*.39), int(s*.54), int(s*.61), int(s*.62)), 0, 180, fill=pelo)
+    if p.get("aretes"):
+        d.ellipse((int(s*.28), int(s*.48), int(s*.31), int(s*.52)), fill="#FFD700")
+        d.ellipse((int(s*.69), int(s*.48), int(s*.72), int(s*.52)), fill="#FFD700")
     imagen = ctk.CTkImage(light_image=im, dark_image=im, size=(size, size))
     AVATAR_CACHE[clave] = imagen
     return imagen
@@ -200,7 +211,7 @@ class App(ctk.CTk):
         self.preview_label=ctk.CTkLabel(card,text="",image=self.preview_imagenes[0])
         self.preview_label.pack(pady=(24,8))
         self.texto(card,title,19,accent,True).pack()
-        self.texto(card,"12 personajes disponibles",11,COLOR["muted"]).pack(pady=3)
+        self.texto(card,f"{len(PERSONAJES)} personajes disponibles",11,COLOR["muted"]).pack(pady=3)
         self.preview_timer = self.after(2600,self.rotar_preview)
         return card
 
@@ -439,27 +450,27 @@ class App(ctk.CTk):
         lateral = ctk.CTkFrame(contenido, width=335, corner_radius=20, fg_color=COLOR["surface2"])
         lateral.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
         lateral.grid_propagate(False)
-        img_cpu = cpu_image(138)
+        img_cpu = cpu_image(115)
         self.imagenes.add(img_cpu)
-        ctk.CTkLabel(lateral, text="", image=img_cpu).pack(pady=(13, 0))
-        self.texto(lateral, "COMPUTADORA", 13, COLOR["purple"], True).pack(pady=(0, 5))
+        ctk.CTkLabel(lateral, text="", image=img_cpu).pack(pady=(10, 0))
+        self.texto(lateral, "COMPUTADORA", 13, COLOR["purple"], True).pack(pady=(0, 3))
         self.respuesta_usuario_label = self.texto(
             lateral, "", 9, COLOR["muted"], True, wraplength=285, justify="center"
         )
-        self.respuesta_usuario_label.pack(padx=16, pady=(0, 9))
+        self.respuesta_usuario_label.pack(padx=16, pady=(0, 6))
 
-        preguntas = ctk.CTkFrame(lateral, fg_color="transparent")
-        preguntas.pack(fill="x", padx=13, pady=(0, 12))
+        preguntas = ctk.CTkScrollableFrame(lateral, fg_color="transparent")
+        preguntas.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         self.botones_preguntas_usuario = {}
         for atributo, pregunta in ATRIBUTOS:
             b = ctk.CTkButton(
-                preguntas, text=pregunta, height=34, corner_radius=10,
+                preguntas, text=pregunta, height=32, corner_radius=10,
                 fg_color=COLOR["card"], hover_color=COLOR["blue2"], anchor="w",
                 text_color=COLOR["white"], text_color_disabled=COLOR["muted"],
                 font=ctk.CTkFont("Segoe UI", 10, "bold"),
                 command=lambda a=atributo: self.preguntar_computadora(a),
             )
-            b.pack(fill="x", pady=3)
+            b.pack(fill="x", pady=2)
             self.botones_preguntas_usuario[atributo] = b
 
         derecha = ctk.CTkFrame(contenido, corner_radius=20, fg_color=COLOR["surface2"])
